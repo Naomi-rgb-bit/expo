@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react';
 
-import { useRouteNode } from '../Route';
+import { type RouteNode, useRouteNode } from '../Route';
 import { NOT_FOUND_ROUTE_NAME } from '../constants';
 import { useRouterActions } from '../global-state/useRouterActions';
+import { getGroupMatchingRouteName } from '../layoutAnchor';
 import { useGuardRedirect } from '../layouts/GuardContext';
 import { useIsPreview } from '../link/preview/PreviewRouteContext';
 import {
@@ -17,6 +18,8 @@ import type { StandardNavigatorDescriptor } from './types';
 import { useBuildHref } from './useBuildHref';
 
 export type TabRoute = RouteProp<ParamListBase, string>;
+
+const layoutsWarnedAboutAnchor = new WeakSet<RouteNode>();
 
 export type TabDescriptor<Options extends object> = Partial<
   Pick<StandardNavigatorDescriptor<Options>, 'routeSource' | 'options' | 'render'> &
@@ -101,6 +104,22 @@ export function useVisibleTabsWithRedirect<
     }
     // Route names are diagnostic; only rerun when the warning's eligibility changes.
   }, [guardRedirect, routeNode?.contextKey, visibleRoutes.length]);
+
+  useEffect(() => {
+    // A route named like the group is an implicit anchor that the user did not set.
+    if (
+      __DEV__ &&
+      routeNode &&
+      initialRouteName !== undefined &&
+      initialRouteName !== getGroupMatchingRouteName(routeNode) &&
+      !layoutsWarnedAboutAnchor.has(routeNode)
+    ) {
+      layoutsWarnedAboutAnchor.add(routeNode);
+      console.warn(
+        `The navigator at "${routeNode.contextKey}" sets the anchor "${initialRouteName}", but anchors are only supported in stack navigators. Remove the anchor from this layout.`
+      );
+    }
+  }, [initialRouteName, routeNode]);
 
   useEffect(() => {
     // The focused route can be hidden or have no trigger at all — for example a path pointing at a
